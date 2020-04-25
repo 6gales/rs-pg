@@ -1,0 +1,22 @@
+[package]
+name = "rs-pg"
+version = "0.1.0"
+authors = ["Andrey <6gales@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "rs_pg"
+path = "src/lib.rs"
+
+[[bin]]
+name = "main"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1.0.106", features = ["derive"] }
+serde_json = "1.0.40"
+# type-info = "0.2.1"
+# type-info-derive = "0.2.0"
+postgres = {version = "0.17.2"}

@@ -1,13 +1,12 @@
 use serde::{Serialize, Deserialize};
 
 pub trait TypeName {
-	fn name(&self) -> String;
+	fn name(&self) -> &str;
 }
 
-pub trait Entity : TypeName + Serialize + Deserialize {
-	
+pub trait Entity<'a> : TypeName + Serialize + Deserialize<'a> {
 }
 
-macro_rules! attribute {
+macro_rules! type_name {
     ($e:expr) => { Attribute::process(&$e) };
 }

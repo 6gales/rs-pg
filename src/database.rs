@@ -1,13 +1,17 @@
 extern crate postgres;
 
-use postgres::{Client, NoTls, Error};
+use postgres::{Client, NoTls};//, Error};
 use serde::{Deserialize, Serialize};
 use serde_json::{
-	Result,
+//	Result,
 	Value
 };
+use std::result::Result;
+use crate::entity::Entity;
+use crate::error::DbError;
+use std::string::String;
 
-
+//pub mod database;
 // pub trait Database {
 //     fn execute_sql_with_return(&mut self, sql: &str, param: &[&Value]) -> Result<Rows, DbError>;
 
@@ -18,38 +22,46 @@ use serde_json::{
 //     fn get_grouped_tables(&mut self) -> Result<Vec<SchemaContent>, DbError>;
 // }
 
+
 pub struct PostgresClient {
 	client: Client,
 }
 
 impl PostgresClient {
-	fn connect(conn_string: &str) -> Result<Self, Error> {
+	pub fn connect(conn_string: &str) -> Result<PostgresClient, postgres::Error> {
 		let mut client = Client::connect(conn_string, NoTls)?;
-		PostgresClient{
+		Ok(PostgresClient{
 			client: client,
-		}
+		})
 	}
 
-	fn batch_execute(&mut self, query: &str) -> Result<(), Error> {
+	pub fn batch_execute(&mut self, query: &str) -> Result<(), postgres::Error> {
 		self.client.batch_execute(query)
 	}
 
-	pub fn create_table<T>(&mut self) where T : Serialize + Deserialize -> Result<(), Error> {
-
-		let table = "test";//T::TABLE_NAME;
-		let val = serde_json::to_value(T{})?
-		let mut query = String::from("CREATE TABLE(");
-
-		if let Value::Object(fields) = val {
-			
-			for (field, _) in fields {
-//				query
-			}
-			self.client.batch_execute(query);
-			Ok(())
-
-		} else {
-			Error("Bad table type")
-		}
+	pub fn create_table_if_not_exists() {
+		
 	}
+
+	pub fn model() {
+
+	}
+
+	// pub fn create_table<'a, T: Entity<'a>>(&mut self, ex: T) -> Result<(), DbError> {
+
+	// 	let val = serde_json::to_value(ex).unwrap();
+	// 	let mut query = String::from("CREATE TABLE ") + ex.name() + "(";
+
+	// 	if let Value::Object(fields) = val {
+			
+	// 		for (field, _) in fields {
+	// 			query += field.as_str() + ;
+	// 		}
+	// 		self.client.batch_execute(query.as_str());
+	// 		Ok(())
+
+	// 	} else {
+	// 		Error("Bad table type")
+	// 	}
+	// }
 }

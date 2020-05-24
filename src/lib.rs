@@ -14,6 +14,22 @@
 // };
 
 pub mod database;
+pub use database::PostgresClient;
+
+pub mod entity;
+pub use entity::Entity;
+
+extern crate serde;
+extern crate postgres;
+// extern crate postgres_derive;
+
+//#[cfg(test)] extern crate serde_derive;
+
+pub mod de;
+pub mod error;
+
+pub use de::{from_row, Deserializer};
+pub use error::{DeError, Result};
 
 // trait Entity {
 // 	const TABLE_NAME: String;

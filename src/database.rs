@@ -1,6 +1,8 @@
 extern crate postgres;
 
-use postgres::{Client, NoTls};//, Error};
+use postgres::{Client, NoTls, ToStatement};//, Error};
+use postgres::types::ToSql;
+
 use serde::{Deserialize, Serialize};
 use serde_json::{
 //	Result,
@@ -22,6 +24,10 @@ use std::string::String;
 //     fn get_grouped_tables(&mut self) -> Result<Vec<SchemaContent>, DbError>;
 // }
 
+pub struct CreateTableOptions {
+	pub temp: bool,
+	pub if_not_exists: bool
+}
 
 pub struct PostgresClient {
 	client: Client,
@@ -29,7 +35,7 @@ pub struct PostgresClient {
 
 impl PostgresClient {
 	pub fn connect(conn_string: &str) -> Result<PostgresClient, postgres::Error> {
-		let mut client = Client::connect(conn_string, NoTls)?;
+		let client = Client::connect(conn_string, NoTls)?;
 		Ok(PostgresClient{
 			client: client,
 		})
@@ -39,8 +45,28 @@ impl PostgresClient {
 		self.client.batch_execute(query)
 	}
 
-	pub fn create_table_if_not_exists() {
+	pub fn execute<T>(&mut self, query: &T, params: &[&(dyn ToSql + Sync)]) -> Result<u64, postgres::Error> where T: ToStatement {
+		self.client.execute(query, params)
+	}
+
+	pub fn insert<T: Serialize>(item: T) {
 		
+	}
+
+	pub fn create_table<T: Entity>(&mut self, opts: CreateTableOptions) -> Result<(), postgres::Error> {
+
+		let mut query = String::from("CREATE ");
+		if opts.temp {
+			query += "TEMP ";
+		}
+		query += "TABLE ";
+		if opts.if_not_exists {
+			query += "IF NOT EXISTS ";
+		}
+		query += T::scheme().as_str();
+		println!("Query: \"{}\"", query);
+
+		self.client.batch_execute(query.as_str())
 	}
 
 	pub fn model() {

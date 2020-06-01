@@ -1,10 +1,7 @@
 use serde::{Serialize, Deserialize};
 
-pub trait TypeName {
-	fn name(&self) -> &str;
-}
-
-pub trait Entity<'a> : TypeName + Serialize + Deserialize<'a> {
+pub trait Entity {//<'a> : TypeName + Serialize + Deserialize<'a> {
+    fn scheme() -> String;
 }
 
 macro_rules! type_name {

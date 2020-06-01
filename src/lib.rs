@@ -14,7 +14,7 @@
 // };
 
 pub mod database;
-pub use database::PostgresClient;
+pub use database::{PostgresClient, CreateTableOptions};
 
 pub mod entity;
 pub use entity::Entity;

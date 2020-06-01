@@ -1,44 +1,146 @@
-// // #![feature(const_type_id)]
+// #![feature(const_type_id)]
 
-// // extern crate type_info;
+// extern crate type_info;
 
-// // #[macro_use]
-// // extern crate type_info_derive;
+// #[macro_use]
+// extern crate type_info_derive;
 
-// // use type_info::TypeInfo;
+// use type_info::TypeInfo;
 
-// // #[derive(TypeInfo)]
+// #[derive(TypeInfo)]
 
-// //use rs_pg::database::PostgresClient;
-// //use rs_pg;
-// //use serde::{Deserialize, Serialize};
-// //use serde_json::Result;
+//use rs_pg::database::PostgresClient;
+//use rs_pg;
+use serde::{Deserialize, Serialize};
+//use serde_json::Result;
 
-// // #[derive(Serialize, Deserialize)]
-// // struct Person {
-// //     name: String,
-// //     age: u32,
-// // }
+#[derive(Debug, Serialize, Deserialize)]
+struct Person {
+    name: String,
+    age: u32,
+}
 
-// struct Worker {
-// 	id: i32,
-// 	name: String
-// }
+#[macro_use]
+extern crate rs_pg_scheme;
 
-// extern crate postgres;
+#[derive(Serialize)]
+struct Worker {
+	id: i32,
+	name: String
+}
 
-use postgres::{Client, NoTls, Error};
-// use postgres::{Connection, TlsMode};
-// use std::result::Result;
+use rs_pg::database::{PostgresClient, CreateTableOptions};
+use rs_pg::Entity;
 
+#[derive(Entity)]
+#[table_name = "toasts"]
+struct FrenchToast {
+	#[primary_key]
+	id: i32,
+	#[unique]
+	name: String,
+	x: f64,
+	y: f64
+}
 
-// pub fn main() {
-// //    create_table(Person);
+#[derive(Entity)]
+struct Waffles {
+	#[primary_key]
+	waffle_id: i32,
+//	#[references(FrenchToast)]
+	#[references("toasts", "id")]
+	toast_id: i32,
+	#[skip]
+	taste: String
+}
 
-// 	// let mut client = Client::connect("postgresql://postgres:zeratul@localhost:5432/postgres", NoTls)?;
-// 	let conn = Connection::connect("postgresql://postgres:zeratul@localhost:5432/postgres", TlsMode::None)
-//             .unwrap();
+use postgres::{Client, NoTls};
 
+pub fn main12() -> Result<(), postgres::Error> {
+
+	// let mut client = PostgresClient::connect("postgresql://postgres:zeratul@localhost:5432/postgres")?;
+	// client.create_table::<FrenchToast>(CreateTableOptions{temp: false, if_not_exists: true})?;
+	// client.create_table::<Waffles>(CreateTableOptions{temp: false, if_not_exists: false})?;
+
+	let mut client = Client::connect("postgresql://postgres:zeratul@localhost:5432/postgres", NoTls)?;
+
+	// let bar = 1i32;
+	// let baz = true;
+	// let rows_updated = client.execute(
+	// 	"UPDATE foo SET bar = $1 WHERE baz = $2",
+	// 	&[&bar, &baz],
+	// )?;
+
+	// println!("{} rows updated", rows_updated);
+
+	let worker = Person{age: 15, name: String::from("aaa")};
+	let val = serde_json::to_value(worker).unwrap();
+
+	println!("{}", val);
+	let mut query = String::from("INSERT INTO person(");
+	let map = val.as_object().unwrap();
+
+	for pair in map {
+		query += pair.0.as_str();
+		query += ", ";
+	}
+	query.pop();
+	query.pop();
+	query += ") VALUES (";
+
+	let mut values: Vec<&(dyn postgres::types::ToSql + Sync)> = vec!();
+	let mut i = 1;
+	let mut array: [i32; 3] = [0, 0, 0];
+	let mut j = 0;
+	for pair in map {
+		query += "$";
+		query += i.to_string().as_str();
+		query += ", ";
+		i += 1;
+
+		match pair.1 {
+			serde_json::Value::Bool(b) => {},//values.push(b),
+		    serde_json::Value::Number(num) => {
+				array[j] = num.as_i64().unwrap() as i32;
+				j += 1;
+			},
+			serde_json::Value::String(s) => {}//values.push(s),
+			_ => panic!("Unexpected type"),
+		}
+	}
+	query.pop();
+	query.pop();
+	query += ")";
+
+	j = 0;
+	for pair in map {
+		match pair.1 {
+			serde_json::Value::Bool(b) => values.push(b),
+		    serde_json::Value::Number(num) => {
+				values.push(&array[j]);
+				j += 1;
+			},
+			serde_json::Value::String(s) => values.push(s),
+			_ => panic!("Unexpected type"),
+		}
+	}
+
+	println!("{}", query);
+	println!("{:?}", values);
+	//client.execute("query: &T", params: &[&(dyn ToSql + Sync)])
+
+    client.execute(query.as_str(), values.as_slice())?;
+//    &[&"Jane", &23])?;
+
+//     client.execute("INSERT INTO Person (name, age) VALUES ($1, $2)",
+// 	&[&"Alice", &32])?;
+	
+// 	let name = "Ferris";
+// let data = None::<&[u8]>;
+// client.execute(
+//     "INSERT INTO person (name, data) VALUES ($1, $2)",
+//     &[&name, &data],
+// )?;
 // 	let mut json = String::from("{\"");
 	
 // 	for row in &conn.query("SELECT worker_id, name FROM workers", &[]).unwrap() {
@@ -57,41 +159,65 @@ use postgres::{Client, NoTls, Error};
 //         // println!("Worker #{} is {}", worker.id, worker.name);
 // 	}
 // 	println!("{}", json);
+	Ok(())
+}
 
+
+// #[proc_macro_derive(FiniteStateMachine, attributes(state_transitions, state_change))]
+// pub fn fxsm(input: TokenStream) -> TokenStream {
+//     // ...
 // }
 
-extern crate serde;
-extern crate postgres;
+// #[derive(Copy, Clone, Debug, FiniteStateMachine)]
+// #[state_change(GameEvent, change_condition)] // optional
+// enum GameState {
+//     #[state_transitions(NeedServer, Ready)]
+//     Prepare { players: u8 },
+//     #[state_transitions(Prepare, Ready)]
+//     NeedServer,
+//     #[state_transitions(Prepare)]
+//     Ready,
+// }
 
-
-use serde::{Deserialize, Serialize};
-//use postgres::{Connection, TlsMode};
+// #[derive(Clone, Debug, Deserialize)]
+// struct Person {
+//     name: String,
+//     age: i32,
+// }
 use rs_pg::from_row;
 
 #[derive(Clone, Debug, Deserialize)]
-struct Person {
-    name: String,
-    age: i32,
+struct NuRep {
+    aaa: String,
+	bbb: i32,
+	ccc: Option<i32>,
 }
 
-fn main() -> Result<(), Box<Error>> {
+// enum Constraint<T> {
+// 	Unique(T),
+// 	PrimaryKey(T),
+// 	References(T)
+// }
+
+fn main() -> Result<(), Box<postgres::Error>> {
 	let mut client = Client::connect("postgresql://postgres:zeratul@localhost:5432/postgres", NoTls)?;
 
-    client.execute("CREATE TABLE IF NOT EXISTS Person (
-        name VARCHAR NOT NULL,
-        age INT NOT NULL
+    client.execute("CREATE TABLE IF NOT EXISTS NuRep (
+        aaa VARCHAR NOT NULL,
+		bbb INT NOT NULL,
+		ccc INT NULL
     )", &[])?;
 
-    client.execute("INSERT INTO Person (name, age) VALUES ($1, $2)",
-    &[&"Jane", &23])?;
+    // client.execute("INSERT INTO NuRep (aaa, bbb, ccc) VALUES ($1, $2, $3)",
+    // &[&"Jane", &23, &117])?;
 
-    client.execute("INSERT INTO Person (name, age) VALUES ($1, $2)",
-    &[&"Alice", &32])?;
+    // client.execute("INSERT INTO NuRep (aaa, bbb, ccc) VALUES ($1, $2, NULL)",
+    // &[&"Alice", &32])?;
     
-    let rows = client.query("SELECT name, age FROM Person", &[])?;
+    let rows = client.query("SELECT aaa, bbb, ccc FROM NuRep", &[])?;
 
 //	let people: Vec<Person> = serde_postgres::from_rows(&rows)?;
-	let mut people: Vec<Person> = vec!();
+	let mut people: Vec<NuRep> = vec!();
 	for row in rows {
 		let person = from_row(row).unwrap();
 		people.push(person);

@@ -11,6 +11,11 @@ use postgres::Row;
 
 use crate::error::{DeError, Result};
 
+use std::{
+	net::IpAddr,
+	time::SystemTime
+};
+
 /// A structure that deserialize Postgres rows into Rust values.
 pub struct Deserializer {
     input: Row,
@@ -30,14 +35,6 @@ pub fn from_row<'a, T: Deserialize<'a>>(input: Row) -> Result<T> {
     Ok(T::deserialize(&mut deserializer)?)
 }
 
-// /// Attempt to deserialize from `Rows`.
-// pub fn from_rows<'a, T: Deserialize<'a>>(input: &'a Rows) -> Result<Vec<T>> {
-//     input.into_iter().map(|row| {
-//         let mut deserializer = Deserializer::from_row(row);
-//         T::deserialize(&mut deserializer)
-//     }).collect()
-// }
-
 macro_rules! unsupported_type {
     ($($fn_name:ident),*,) => {
         $(
@@ -55,6 +52,24 @@ macro_rules! get_value {
     }}
 }
 
+macro_rules! try_get_optional {
+	($this:ident, $v:ident, $ty:ty) => {{
+		if let Ok(_) = $this.input.try_get::<_, $ty>($this.index) {
+			$v.visit_some($this)
+		} else {
+			$v.visit_none()
+		}
+	}};
+
+	($this:ident, $v:ident, $ty:ty, $($types:ty), +) => {{
+		if let Ok(_) = $this.input.try_get::<_, $ty>($this.index) {
+			$v.visit_some($this)
+		} else {
+			try_get_optional!($this, $v, $($types),+)
+		}
+	}};
+}
+
 impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer {
     type Error = DeError;
 
@@ -67,7 +82,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer {
         deserialize_str,
         deserialize_bytes,
 		deserialize_unit,
-		deserialize_option,
+//		deserialize_option,
         deserialize_identifier,
     }
 
@@ -115,16 +130,9 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer {
         get_value!(self, visitor, visit_byte_buf, Vec<u8>)
     }
 
-    // fn deserialize_option<V: Visitor<'de>>(self, visitor: V)
-    //     -> Result<V::Value>
-    // {
-
-    //     if self.input.get_bytes(self.index).is_some() {
-    //         visitor.visit_some(self)
-    //     } else {
-    //         visitor.visit_none()
-    //     }
-    // }
+    fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {		
+		try_get_optional!(self, visitor, i32, i64, String, bool, f32, f64, i8, i16, u32, Vec<u8>, SystemTime, IpAddr)
+    }
 
     fn deserialize_seq<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         let raw = self.input.try_get::<_, Vec<u8>>(self.index)

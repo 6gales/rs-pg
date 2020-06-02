@@ -3,12 +3,3 @@ name = "rs-pg-scheme"
 version = "0.1.0"
 authors = ["Andrey <6gales@gmail.com>"]
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[lib]
-proc-macro = true
-
-[dependencies]
-syn = "0.11.11"
-quote = "0.3.15"

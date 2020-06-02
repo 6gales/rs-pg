@@ -21,7 +21,7 @@ struct Person {
 }
 
 #[macro_use]
-extern crate rs_pg_scheme;
+extern crate rs_pg_derive;
 
 #[derive(Serialize)]
 struct Worker {
@@ -214,13 +214,17 @@ fn main() -> Result<(), Box<postgres::Error>> {
     // client.execute("INSERT INTO NuRep (aaa, bbb, ccc) VALUES ($1, $2, NULL)",
     // &[&"Alice", &32])?;
     
-    let rows = client.query("SELECT aaa, bbb, ccc FROM NuRep", &[])?;
-
+	let rows = client.query("SELECT aaa, bbb, ccc FROM NuRep", &[])?;
+	
 //	let people: Vec<Person> = serde_postgres::from_rows(&rows)?;
 	let mut people: Vec<NuRep> = vec!();
 	for row in rows {
 		let person = from_row(row).unwrap();
 		people.push(person);
+		// let a: String = row.get(0);
+		// let b: i32 = row.get(1);
+		// let c: Option<i32> = row.get(2);
+		// println!("{:?} {:?} {:?}", a, b, c);
 	}
 
     for person in people {

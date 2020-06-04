@@ -1,18 +1,4 @@
-// #![feature(const_type_id)]
-
-// extern crate type_info;
-
-// #[macro_use]
-// extern crate type_info_derive;
-
-// use type_info::TypeInfo;
-
-// #[derive(TypeInfo)]
-
-//use rs_pg::database::PostgresClient;
-//use rs_pg;
 use serde::{Deserialize, Serialize};
-//use serde_json::Result;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Person {
@@ -22,6 +8,8 @@ struct Person {
 
 #[macro_use]
 extern crate rs_pg_derive;
+extern crate rs_pg_scheme;
+
 
 #[derive(Serialize)]
 struct Worker {
@@ -50,11 +38,22 @@ struct Waffles {
 //	#[references(FrenchToast)]
 	#[references("toasts", "id")]
 	toast_id: i32,
-	#[skip]
-	taste: String
+
+	taste: Option<String>
 }
 
+use std::collections::HashMap;
+
 use postgres::{Client, NoTls};
+use rs_pg_scheme::{Constraint, Field, Scheme, PgType};
+
+pub fn main() -> Result<(), postgres::Error> {
+
+	let mut client = PostgresClient::connect("postgresql://postgres:zeratul@localhost:5432/postgres")?;
+	client.create_table::<FrenchToast>(CreateTableOptions{temp: false, if_not_exists: true})?;
+	client.create_table::<Waffles>(CreateTableOptions{temp: false, if_not_exists: false})?;
+	Ok(())
+}
 
 pub fn main12() -> Result<(), postgres::Error> {
 
@@ -199,37 +198,37 @@ struct NuRep {
 // 	References(T)
 // }
 
-fn main() -> Result<(), Box<postgres::Error>> {
-	let mut client = Client::connect("postgresql://postgres:zeratul@localhost:5432/postgres", NoTls)?;
+// fn mainSel() -> Result<(), Box<postgres::Error>> {
+// 	let mut client = Client::connect("postgresql://postgres:zeratul@localhost:5432/postgres", NoTls)?;
 
-    client.execute("CREATE TABLE IF NOT EXISTS NuRep (
-        aaa VARCHAR NOT NULL,
-		bbb INT NOT NULL,
-		ccc INT NULL
-    )", &[])?;
+//     client.execute("CREATE TABLE IF NOT EXISTS NuRep (
+//         aaa VARCHAR NOT NULL,
+// 		bbb INT NOT NULL,
+// 		ccc INT NULL
+//     )", &[])?;
 
-    // client.execute("INSERT INTO NuRep (aaa, bbb, ccc) VALUES ($1, $2, $3)",
-    // &[&"Jane", &23, &117])?;
+//     // client.execute("INSERT INTO NuRep (aaa, bbb, ccc) VALUES ($1, $2, $3)",
+//     // &[&"Jane", &23, &117])?;
 
-    // client.execute("INSERT INTO NuRep (aaa, bbb, ccc) VALUES ($1, $2, NULL)",
-    // &[&"Alice", &32])?;
+//     // client.execute("INSERT INTO NuRep (aaa, bbb, ccc) VALUES ($1, $2, NULL)",
+//     // &[&"Alice", &32])?;
     
-	let rows = client.query("SELECT aaa, bbb, ccc FROM NuRep", &[])?;
+// 	let rows = client.query("SELECT aaa, bbb, ccc FROM NuRep", &[])?;
 	
-//	let people: Vec<Person> = serde_postgres::from_rows(&rows)?;
-	let mut people: Vec<NuRep> = vec!();
-	for row in rows {
-		let person = from_row(row).unwrap();
-		people.push(person);
-		// let a: String = row.get(0);
-		// let b: i32 = row.get(1);
-		// let c: Option<i32> = row.get(2);
-		// println!("{:?} {:?} {:?}", a, b, c);
-	}
+// //	let people: Vec<Person> = serde_postgres::from_rows(&rows)?;
+// 	let mut people: Vec<NuRep> = vec!();
+// 	for row in rows {
+// 		let person = from_row(row).unwrap();
+// 		people.push(person);
+// 		// let a: String = row.get(0);
+// 		// let b: i32 = row.get(1);
+// 		// let c: Option<i32> = row.get(2);
+// 		// println!("{:?} {:?} {:?}", a, b, c);
+// 	}
 
-    for person in people {
-        println!("{:?}", person);
-    }
+//     for person in people {
+//         println!("{:?}", person);
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }

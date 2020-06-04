@@ -82,7 +82,6 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer {
         deserialize_str,
         deserialize_bytes,
 		deserialize_unit,
-//		deserialize_option,
         deserialize_identifier,
     }
 

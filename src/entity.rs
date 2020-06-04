@@ -1,9 +1,5 @@
-use serde::{Serialize, Deserialize};
+use rs_pg_scheme::Scheme;
 
-pub trait Entity {//<'a> : TypeName + Serialize + Deserialize<'a> {
-    fn scheme() -> String;
-}
-
-macro_rules! type_name {
-    ($e:expr) => { Attribute::process(&$e) };
+pub trait Entity {
+	fn scheme() -> Scheme;
 }

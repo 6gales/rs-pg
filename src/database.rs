@@ -3,26 +3,14 @@ extern crate postgres;
 use postgres::{Client, NoTls, ToStatement};//, Error};
 use postgres::types::ToSql;
 
-use serde::{Deserialize, Serialize};
-use serde_json::{
-//	Result,
-	Value
-};
+use serde::{
+	//Deserialize, 
+	Serialize};
+
 use std::result::Result;
 use crate::entity::Entity;
-use crate::error::DbError;
-use std::string::String;
-
-//pub mod database;
-// pub trait Database {
-//     fn execute_sql_with_return(&mut self, sql: &str, param: &[&Value]) -> Result<Rows, DbError>;
-
-//     fn get_table(&mut self, table_name: &TableName) -> Result<Table, DbError>;
-
-//     fn get_all_tables(&mut self) -> Result<Vec<Table>, DbError>;
-
-//     fn get_grouped_tables(&mut self) -> Result<Vec<SchemaContent>, DbError>;
-// }
+use rs_pg_scheme::pg_type_to_str;
+//use crate::error::DbError;
 
 pub struct CreateTableOptions {
 	pub temp: bool,
@@ -49,7 +37,7 @@ impl PostgresClient {
 		self.client.execute(query, params)
 	}
 
-	pub fn insert<T: Serialize>(item: T) {
+	pub fn insert<T: Serialize>(_item: T) {
 		
 	}
 
@@ -63,9 +51,28 @@ impl PostgresClient {
 		if opts.if_not_exists {
 			query += "IF NOT EXISTS ";
 		}
-		query += T::scheme().as_str();
-		println!("Query: \"{}\"", query);
+		let scheme = T::scheme();
+		query += scheme.name.as_str();
+		query += "(";
+		
+		for name in scheme.fields.keys() {
+			query += name.as_str();
+			query += " ";
 
+			let field = scheme.fields.get(name).unwrap();
+			query += pg_type_to_str(&field.ty);
+			query += " ";
+
+			for constr in field.constraints.iter() {
+				query += constr.to_string().as_str();
+				query += " ";
+			}
+			query += ","
+		}
+		query.pop();
+		query += ")";
+
+		println!("Query: \"{}\"", query);
 		self.client.batch_execute(query.as_str())
 	}
 

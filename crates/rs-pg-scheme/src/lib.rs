@@ -2,29 +2,56 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
+pub enum Action {
+	Restrict,
+	Cascade,
+	SetNull,
+	SetDefault,
+	NoAction
+}
+
+impl ToString for Action {
+	fn to_string(&self) -> String {
+		match self {
+			Action::Restrict => "RESTRICT".to_string(),
+			Action::Cascade => "CASCADE".to_string(),
+			Action::SetNull => "SET NULL".to_string(),
+			Action::SetDefault => "SET DEFAULT".to_string(),
+			Action::NoAction => "NO ACTION".to_string()
+		}
+	}
+}
+
+#[derive(Deserialize, Serialize)]
 pub enum Constraint {
 	PrimaryKey,
-	References(String, String),
+	References(String, String, Option<Action>, Option<Action>),
 	Unique,
 	NotNull,
 	Null,
+	Check(String)
 }
 
 impl ToString for Constraint {
 	fn to_string(&self) -> String {
 		match self {
 			Constraint::PrimaryKey => "PRIMARY KEY".to_string(),
-			Constraint::References(table, column) => format!("REFERENCES {}({})", table, column),
+			Constraint::References(table, column, delete, update) => {
+				format!("REFERENCES {}({}) ON DELETE {} ON UPDATE {}", table, column,
+				if let Some(a) = delete { a.to_string() } else { Action::NoAction.to_string() },
+				if let Some(a) = update { a.to_string() } else { Action::NoAction.to_string() })
+			}
 			Constraint::Unique => "UNIQUE".to_string(),
 			Constraint::NotNull => "NOT NULL".to_string(),
-			Constraint::Null => "NULL".to_string()
+			Constraint::Null => "NULL".to_string(),
+			Constraint::Check(body) => format!("CHECK ({})", body)
 		}
 	}
 }
 
-type Serial = i32;
+pub type Serial = i32;
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, PartialEq, Clone)]
 pub enum PgType {
 	Serial,
 	Real,
@@ -64,7 +91,15 @@ pub struct Field {
 }
 
 #[derive(Deserialize, Serialize)]
+pub struct PkField {
+	pub name: String,
+	pub ty: PgType
+}
+
+#[derive(Deserialize, Serialize)]
 pub struct Scheme {
 	pub name: String,
-	pub fields: HashMap<String, Field>
+	pub pk_field: Option<PkField>,
+	pub fields: HashMap<String, Field>,
+	pub constraints: Vec<Constraint>
 }

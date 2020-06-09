@@ -1,29 +1,16 @@
-// #![feature(const_type_id)]
-
-// extern crate type_info;
-
-// #[macro_use]
-// extern crate type_info_derive;
-
-// use type_info::{
-// 	TypeInfo,
-// 	DynamicTypeInfo,
-// 	Type,
-// 	TypeId,
-// 	Data,
-// };
-
 pub mod database;
-pub use database::{PostgresClient, CreateTableOptions};
+pub use database::{PostgresClient, CreateTableOptions, ConnectOptions};
 
 pub mod entity;
-pub use entity::Entity;
+pub use entity::{Entity, WithId};
 
 extern crate serde;
 extern crate postgres;
+extern crate rs_pg_scheme;
 
 pub mod de;
 pub mod error;
 
 pub use de::{from_row, Deserializer};
-pub use error::{DeError, Result};
+pub use error::{DbError};//, Result};
+pub use rs_pg_scheme::{Serial, Scheme};

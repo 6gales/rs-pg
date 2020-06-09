@@ -9,12 +9,14 @@ use serde::de::{
 
 use postgres::Row;
 
-use crate::error::{DeError, Result};
+use crate::error::DeError;
 
 use std::{
 	net::IpAddr,
 	time::SystemTime
 };
+
+type Result<T> = ::std::result::Result<T, DeError>;
 
 /// A structure that deserialize Postgres rows into Rust values.
 pub struct Deserializer {

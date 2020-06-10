@@ -233,7 +233,7 @@ impl PostgresClient {
 
 		query.pop();
 		query.pop();
-		query += ") VALUES (";
+		query += ") VALUES ";
 	
 		let mut value_num = 1;
 
@@ -246,6 +246,7 @@ impl PostgresClient {
 		let mut i64s: Vec<i64> = vec!();
 		
 		for item in items {
+			query += "(";
 			let val = serde_json::to_value(item).unwrap();	
 			//TODO: error handling
 			let map = val.as_object().unwrap();

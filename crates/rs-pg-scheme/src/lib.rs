@@ -65,6 +65,8 @@ pub enum PgType {
 	ByteArray,
 	TimeStamp,
 	IpAddr,
+	Date,
+	Time
 }
 
 pub fn pg_type_to_str(ty: &PgType) -> &'static str {
@@ -80,7 +82,9 @@ pub fn pg_type_to_str(ty: &PgType) -> &'static str {
 		PgType::Boolean => "bool",
 		PgType::ByteArray => "bytea",
 		PgType::TimeStamp => "timestamp",
-		PgType::IpAddr => "INET"
+		PgType::IpAddr => "INET",
+		PgType::Date => "DATE",
+		PgType::Time => "TIME"
 	}
 }
 

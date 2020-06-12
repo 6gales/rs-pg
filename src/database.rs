@@ -7,7 +7,11 @@ use serde::{
 	Deserialize, 
 	Serialize};
 
-use std::result::Result;
+use std::{
+	result::Result,
+	net::IpAddr,
+	time::SystemTime
+};
 use crate::entity::{Entity, WithId};
 use crate::de::from_row;
 use crate::error::{DbError, DataError};
@@ -125,7 +129,9 @@ impl PostgresClient {
 		let mut i16s: Vec<i16> = vec!();
 		let mut i32s: Vec<i32> = vec!();
 		let mut i64s: Vec<i64> = vec!();
-		
+		let mut tss: Vec<SystemTime> = vec!();
+		let mut addrs: Vec<IpAddr> = vec!();
+
 		for pair in map {
 			let opt_field = scheme.fields.get(pair.0);
 			if let None = opt_field {
@@ -142,18 +148,18 @@ impl PostgresClient {
 				query += value_num.to_string().as_str();
 				query += ", ";
 				value_num += 1;
-		
-				if let serde_json::Value::Number(num) = pair.1 {
-					match field.ty {
-						PgType::Real => f32s.push(num.as_f64().unwrap() as f32),
-						PgType::DoublePrecision => f64s.push(num.as_f64().unwrap()),
-						PgType::Char => i8s.push(num.as_i64().unwrap() as i8),
-						PgType::SmallInt => i16s.push(num.as_i64().unwrap() as i16),
-						PgType::Integer => i32s.push(num.as_i64().unwrap() as i32),
-						PgType::BigInt => i64s.push(num.as_i64().unwrap()),
-						_ => {},
-					};
-				}
+
+				match field.ty {
+					PgType::Real => f32s.push(unwrap_num(pair.1).as_f64().unwrap() as f32),
+					PgType::DoublePrecision => f64s.push(unwrap_num(pair.1).as_f64().unwrap()),
+					PgType::Char => i8s.push(unwrap_num(pair.1).as_i64().unwrap() as i8),
+					PgType::SmallInt => i16s.push(unwrap_num(pair.1).as_i64().unwrap() as i16),
+					PgType::Integer => i32s.push(unwrap_num(pair.1).as_i64().unwrap() as i32),
+					PgType::BigInt => i64s.push(unwrap_num(pair.1).as_i64().unwrap()),
+					PgType::IpAddr => addrs.push(serde_json::from_value(pair.1.clone()).unwrap()),
+					PgType::TimeStamp => tss.push(serde_json::from_value(pair.1.clone()).unwrap()),
+					_ => {},
+				};
 			}
 		}
 		query.pop();
@@ -169,6 +175,9 @@ impl PostgresClient {
 		let mut i16_iter = i16s.iter();
 		let mut i32_iter = i32s.iter();
 		let mut i64_iter = i64s.iter();
+
+		let mut ts_iter = tss.iter();
+		let mut addr_iter = addrs.iter();
 	
 		for pair in map {
 			let opt_field = scheme.fields.get(pair.0);
@@ -184,22 +193,31 @@ impl PostgresClient {
 				continue;
 			}
 
-			match pair.1 {
-				serde_json::Value::Bool(b) => values.push(b),
-				serde_json::Value::Number(_) => {
-					match field.ty {
-						PgType::Real => values.push(f32_iter.next().unwrap()),
-						PgType::DoublePrecision => values.push(f64_iter.next().unwrap()),
-						PgType::Char => values.push(i8_iter.next().unwrap()),
-						PgType::SmallInt => values.push(i16_iter.next().unwrap()),
-						PgType::Integer => values.push(i32_iter.next().unwrap()),
-						PgType::BigInt => values.push(i64_iter.next().unwrap()),
-						_ => {},
-					};
+			match field.ty {
+				PgType::Real => values.push(f32_iter.next().unwrap()),
+				PgType::DoublePrecision => values.push(f64_iter.next().unwrap()),
+				PgType::Char => values.push(i8_iter.next().unwrap()),
+				PgType::SmallInt => values.push(i16_iter.next().unwrap()),
+				PgType::Integer => values.push(i32_iter.next().unwrap()),
+				PgType::BigInt => values.push(i64_iter.next().unwrap()),
+				PgType::TimeStamp => values.push(ts_iter.next().unwrap()),
+				PgType::IpAddr => values.push(addr_iter.next().unwrap()),
+				PgType::Boolean => {
+					if let serde_json::Value::Bool(b) = pair.1 {
+						values.push(b);
+					} else {
+						panic!("Expected bool, found {}", pair.1);
+					}
 				},
-				serde_json::Value::String(s) => values.push(s),
-				_ => panic!("Unexpected type"),
-			}
+				PgType::Text => {
+					if let serde_json::Value::String(s) = pair.1 {
+						values.push(s);
+					} else {
+						panic!("Expected string, found {}", pair.1);
+					}
+				},
+				_ => {},
+			};
 		}
 	
 		println!("{}", query);
@@ -245,6 +263,9 @@ impl PostgresClient {
 		let mut i32s: Vec<i32> = vec!();
 		let mut i64s: Vec<i64> = vec!();
 		
+		let mut tss: Vec<SystemTime> = vec!();
+		let mut addrs: Vec<IpAddr> = vec!();
+		
 		for item in items {
 			query += "(";
 			let val = serde_json::to_value(item).unwrap();	
@@ -268,17 +289,17 @@ impl PostgresClient {
 					query += ", ";
 					value_num += 1;
 			
-					if let serde_json::Value::Number(num) = pair.1 {
-						match field.ty {
-							PgType::Real => f32s.push(num.as_f64().unwrap() as f32),
-							PgType::DoublePrecision => f64s.push(num.as_f64().unwrap()),
-							PgType::Char => i8s.push(num.as_i64().unwrap() as i8),
-							PgType::SmallInt => i16s.push(num.as_i64().unwrap() as i16),
-							PgType::Integer => i32s.push(num.as_i64().unwrap() as i32),
-							PgType::BigInt => i64s.push(num.as_i64().unwrap()),
-							_ => {},
-						};
-					}
+					match field.ty {
+						PgType::Real => f32s.push(unwrap_num(pair.1).as_f64().unwrap() as f32),
+						PgType::DoublePrecision => f64s.push(unwrap_num(pair.1).as_f64().unwrap()),
+						PgType::Char => i8s.push(unwrap_num(pair.1).as_i64().unwrap() as i8),
+						PgType::SmallInt => i16s.push(unwrap_num(pair.1).as_i64().unwrap() as i16),
+						PgType::Integer => i32s.push(unwrap_num(pair.1).as_i64().unwrap() as i32),
+						PgType::BigInt => i64s.push(unwrap_num(pair.1).as_i64().unwrap()),
+						PgType::IpAddr => addrs.push(serde_json::from_value(pair.1.clone()).unwrap()),
+						PgType::TimeStamp => tss.push(serde_json::from_value(pair.1.clone()).unwrap()),
+						_ => {},
+					};
 				}
 			}
 			query.pop();
@@ -308,10 +329,10 @@ impl PostgresClient {
 		let mut i32_iter = i32s.iter();
 		let mut i64_iter = i64s.iter();
 
-		for map in j_maps {
+		let mut ts_iter = tss.iter();
+		let mut addr_iter = addrs.iter();
 
-			//TODO: error handling
-	
+		for map in j_maps {
 			for pair in map {
 				let opt_field = scheme.fields.get(pair.0);
 				if let None = opt_field {
@@ -326,22 +347,31 @@ impl PostgresClient {
 					continue;
 				}
 
-				match pair.1 {
-					serde_json::Value::Bool(b) => values.push(b),
-					serde_json::Value::Number(_) => {
-						match field.ty {
-							PgType::Real => values.push(f32_iter.next().unwrap()),
-							PgType::DoublePrecision => values.push(f64_iter.next().unwrap()),
-							PgType::Char => values.push(i8_iter.next().unwrap()),
-							PgType::SmallInt => values.push(i16_iter.next().unwrap()),
-							PgType::Integer => values.push(i32_iter.next().unwrap()),
-							PgType::BigInt => values.push(i64_iter.next().unwrap()),
-							_ => {},
-						};
+				match field.ty {
+					PgType::Real => values.push(f32_iter.next().unwrap()),
+					PgType::DoublePrecision => values.push(f64_iter.next().unwrap()),
+					PgType::Char => values.push(i8_iter.next().unwrap()),
+					PgType::SmallInt => values.push(i16_iter.next().unwrap()),
+					PgType::Integer => values.push(i32_iter.next().unwrap()),
+					PgType::BigInt => values.push(i64_iter.next().unwrap()),
+					PgType::TimeStamp => values.push(ts_iter.next().unwrap()),
+					PgType::IpAddr => values.push(addr_iter.next().unwrap()),
+					PgType::Boolean => {
+						if let serde_json::Value::Bool(b) = pair.1 {
+							values.push(b);
+						} else {
+							panic!("Expected bool, found {}", pair.1);
+						}
 					},
-					serde_json::Value::String(s) => values.push(s),
-					_ => panic!("Unexpected type"),
-				}
+					PgType::Text => {
+						if let serde_json::Value::String(s) = pair.1 {
+							values.push(s);
+						} else {
+							panic!("Expected string, found {}", pair.1);
+						}
+					},
+					_ => {},
+				};
 			}
 		}
 	
@@ -352,9 +382,9 @@ impl PostgresClient {
 		Ok(())
 	}
 
-	pub fn insert_with_return<'a, P, T>(&mut self, item: &mut T) -> Result<(), DbError>
-	where P: ToSql + FromSql<'a>,
-	      T: Entity + WithId<'a, P> + Serialize {
+	pub fn insert_with_return<'b, P, T>(&mut self, item: &mut T) -> Result<(), DbError>
+	where P: for<'a> FromSql<'a> + ToSql,
+	      T: Entity + WithId<'b, P> + Serialize {
 
 		let scheme = T::scheme();
 		let val = serde_json::to_value(&item).unwrap();
@@ -466,24 +496,22 @@ impl PostgresClient {
 		println!("{}", query);
 		println!("{:?}", values);
 	
-		let mut rows = self.client.query(query.as_str(), values.as_slice())?;
-		//TODO: chek rows size
-		// let first = &rows[0];
-		// let id: P = first.get(0);
-//		item.__set_pk(id as P);
-// 		for row in rows {
-// 			r = row;
-// 			let id: P = get_from_row(&r, 0);
-// //			println!("{}", id);
-// //			item.__set_pk();
-// 		}
+		let rows = self.client.query(query.as_str(), values.as_slice())?;
 
-		Ok(())	
+		if rows.len() == 0 {
+			Result::Err(DbError::DataError(DataError::ZeroRecordReturned))
+		} else if rows.len() > 1 {
+			Result::Err(DbError::DataError(DataError::MoreThan1RecordReturned))
+		} else {
+			let id: P = rows[0].get(0);
+			item.__set_pk(id);
+			Ok(())
+		}
 	}
 
-	pub fn insert_many_with_return<'a, P, T>(&mut self, items: &mut Vec<T>) -> Result<(), DbError> 
-	where P: ToSql + FromSql<'a>,
-		  T: Entity + WithId<'a, P> + Serialize {
+	pub fn insert_many_with_return<'b, P, T>(&mut self, items: &mut Vec<T>) -> Result<(), DbError> 
+	where P: for<'a> FromSql<'a> + ToSql,
+		  T: Entity + WithId<'b, P> + Serialize {
 
 		if items.len() == 0 {
 			return Result::Err(DbError::DataError(DataError::EmptyVector));
@@ -507,7 +535,7 @@ impl PostgresClient {
 
 		query.pop();
 		query.pop();
-		query += ") VALUES (";
+		query += ") VALUES ";
 	
 		let mut value_num = 1;
 
@@ -519,7 +547,11 @@ impl PostgresClient {
 		let mut i32s: Vec<i32> = vec!();
 		let mut i64s: Vec<i64> = vec!();
 		
+		let mut tss: Vec<SystemTime> = vec!();
+		let mut addrs: Vec<IpAddr> = vec!();
+		
 		for i in 0..items.len() {
+			query += "(";
 			let val = serde_json::to_value(&items[i]).unwrap();	
 			//TODO: error handling
 			let map = val.as_object().unwrap();
@@ -541,17 +573,17 @@ impl PostgresClient {
 					query += ", ";
 					value_num += 1;
 			
-					if let serde_json::Value::Number(num) = pair.1 {
-						match field.ty {
-							PgType::Real => f32s.push(num.as_f64().unwrap() as f32),
-							PgType::DoublePrecision => f64s.push(num.as_f64().unwrap()),
-							PgType::Char => i8s.push(num.as_i64().unwrap() as i8),
-							PgType::SmallInt => i16s.push(num.as_i64().unwrap() as i16),
-							PgType::Integer => i32s.push(num.as_i64().unwrap() as i32),
-							PgType::BigInt => i64s.push(num.as_i64().unwrap()),
-							_ => {},
-						};
-					}
+					match field.ty {
+						PgType::Real => f32s.push(unwrap_num(pair.1).as_f64().unwrap() as f32),
+						PgType::DoublePrecision => f64s.push(unwrap_num(pair.1).as_f64().unwrap()),
+						PgType::Char => i8s.push(unwrap_num(pair.1).as_i64().unwrap() as i8),
+						PgType::SmallInt => i16s.push(unwrap_num(pair.1).as_i64().unwrap() as i16),
+						PgType::Integer => i32s.push(unwrap_num(pair.1).as_i64().unwrap() as i32),
+						PgType::BigInt => i64s.push(unwrap_num(pair.1).as_i64().unwrap()),
+						PgType::IpAddr => addrs.push(serde_json::from_value(pair.1.clone()).unwrap()),
+						PgType::TimeStamp => tss.push(serde_json::from_value(pair.1.clone()).unwrap()),
+						_ => {},
+					};
 				}
 			}
 			query.pop();
@@ -582,10 +614,10 @@ impl PostgresClient {
 		let mut i32_iter = i32s.iter();
 		let mut i64_iter = i64s.iter();
 
-		for map in j_maps {
+		let mut ts_iter = tss.iter();
+		let mut addr_iter = addrs.iter();
 
-			//TODO: error handling
-	
+		for map in j_maps {
 			for pair in map {
 				let opt_field = scheme.fields.get(pair.0);
 				if let None = opt_field {
@@ -600,30 +632,52 @@ impl PostgresClient {
 					continue;
 				}
 
-				match pair.1 {
-					serde_json::Value::Bool(b) => values.push(b),
-					serde_json::Value::Number(_) => {
-						match field.ty {
-							PgType::Real => values.push(f32_iter.next().unwrap()),
-							PgType::DoublePrecision => values.push(f64_iter.next().unwrap()),
-							PgType::Char => values.push(i8_iter.next().unwrap()),
-							PgType::SmallInt => values.push(i16_iter.next().unwrap()),
-							PgType::Integer => values.push(i32_iter.next().unwrap()),
-							PgType::BigInt => values.push(i64_iter.next().unwrap()),
-							_ => {},
-						};
+				match field.ty {
+					PgType::Real => values.push(f32_iter.next().unwrap()),
+					PgType::DoublePrecision => values.push(f64_iter.next().unwrap()),
+					PgType::Char => values.push(i8_iter.next().unwrap()),
+					PgType::SmallInt => values.push(i16_iter.next().unwrap()),
+					PgType::Integer => values.push(i32_iter.next().unwrap()),
+					PgType::BigInt => values.push(i64_iter.next().unwrap()),
+					PgType::TimeStamp => values.push(ts_iter.next().unwrap()),
+					PgType::IpAddr => values.push(addr_iter.next().unwrap()),
+					PgType::Boolean => {
+						if let serde_json::Value::Bool(b) = pair.1 {
+							values.push(b);
+						} else {
+							panic!("Expected bool, found {}", pair.1);
+						}
 					},
-					serde_json::Value::String(s) => values.push(s),
-					_ => panic!("Unexpected type"),
-				}
+					PgType::Text => {
+						if let serde_json::Value::String(s) = pair.1 {
+							values.push(s);
+						} else {
+							panic!("Expected string, found {}", pair.1);
+						}
+					},
+					_ => {},
+				};
 			}
 		}
 	
 		println!("{}", query);
 		println!("{:?}", values);
-	
-		self.client.execute(query.as_str(), values.as_slice())?;
-		Ok(())
+
+		let rows = self.client.query(query.as_str(), values.as_slice())?;
+
+		if rows.len() == 0 {
+			Result::Err(DbError::DataError(DataError::ZeroRecordReturned))
+		} else if rows.len() != items.len() {
+			Result::Err(DbError::DataError(DataError::WrongNumberOfRecordsReturned(items.len(), rows.len())))
+		} else {
+			let mut i = 0;
+			for item in items.iter_mut() {
+				let id: P = rows[i].get(0);
+				item.__set_pk(id);
+				i += 1;
+			}
+			Ok(())
+		}
 	}
 
 	pub fn select_all<'de, T>(&mut self) -> Result<Vec<T>, DbError>
@@ -631,7 +685,7 @@ impl PostgresClient {
 
 		let scheme = T::scheme();
 		let query = format!("SELECT * FROM {}", scheme.name);
-		let mut rows = self.client.query(query.as_str(), &[])?;
+		let rows = self.client.query(query.as_str(), &[])?;
 		let mut res: Vec<T> = vec!();
 		for row in rows {
 			res.push(from_row(row)?);
@@ -643,7 +697,7 @@ impl PostgresClient {
 	where P: ToSql + FromSql<'a> + std::marker::Sync,
 	      T: Entity + WithId<'a, P> + Serialize + Deserialize<'de> {
 
-		let mut values: Vec<&(dyn postgres::types::ToSql + Sync)> = vec!(&v);
+		let values: Vec<&(dyn postgres::types::ToSql + Sync)> = vec!(&v);
 		let scheme = T::scheme();
 		let query = format!(r#"SELECT * FROM {}
 							WHERE {} = $1"#, scheme.name, scheme.pk_field.unwrap().name);
@@ -661,7 +715,7 @@ impl PostgresClient {
 	where P: ToSql + FromSql<'a> + std::marker::Sync,
 	      T: Entity + WithId<'a, P> {
 
-		let mut values: Vec<&(dyn postgres::types::ToSql + Sync)> = vec!(&v);
+		let values: Vec<&(dyn postgres::types::ToSql + Sync)> = vec!(&v);
 		let scheme = T::scheme();
 		let query = format!(r#"DELETE FROM {}
 							WHERE {} = $1"#, scheme.name, scheme.pk_field.unwrap().name);
@@ -672,11 +726,11 @@ impl PostgresClient {
 	pub fn count<T: Entity>(&mut self) -> Result<i64, DbError> {
 		let scheme = T::scheme();
 		let query = format!("SELECT COUNT(*) FROM {}", scheme.name);
-		let mut rows = self.client.query(query.as_str(), &[])?;
+		let rows = self.client.query(query.as_str(), &[])?;
 		Ok(rows[0].get(0))
 	}
 
-	pub fn update<'a, P, T>(&mut self, item: &mut T) -> Result<(), DbError>
+	pub fn update<'a, P, T>(&mut self, item: &mut T) -> Result<u64, DbError>
 	where P: ToSql + FromSql<'a> + std::marker::Sync,
 	      T: Entity + WithId<'a, P> + Serialize {
 
@@ -699,6 +753,9 @@ impl PostgresClient {
 		let mut i16s: Vec<i16> = vec!();
 		let mut i32s: Vec<i32> = vec!();
 		let mut i64s: Vec<i64> = vec!();
+
+		let mut tss: Vec<SystemTime> = vec!();
+		let mut addrs: Vec<IpAddr> = vec!();
 		
 		for pair in map {
 			if pair.0.as_str() == pk_name {
@@ -724,17 +781,17 @@ impl PostgresClient {
 				query += ", ";
 				value_num += 1;
 		
-				if let serde_json::Value::Number(num) = pair.1 {
-					match field.ty {
-						PgType::Real => f32s.push(num.as_f64().unwrap() as f32),
-						PgType::DoublePrecision => f64s.push(num.as_f64().unwrap()),
-						PgType::Char => i8s.push(num.as_i64().unwrap() as i8),
-						PgType::SmallInt => i16s.push(num.as_i64().unwrap() as i16),
-						PgType::Integer => i32s.push(num.as_i64().unwrap() as i32),
-						PgType::BigInt => i64s.push(num.as_i64().unwrap()),
-						_ => {},
-					};
-				}
+				match field.ty {
+					PgType::Real => f32s.push(unwrap_num(pair.1).as_f64().unwrap() as f32),
+					PgType::DoublePrecision => f64s.push(unwrap_num(pair.1).as_f64().unwrap()),
+					PgType::Char => i8s.push(unwrap_num(pair.1).as_i64().unwrap() as i8),
+					PgType::SmallInt => i16s.push(unwrap_num(pair.1).as_i64().unwrap() as i16),
+					PgType::Integer => i32s.push(unwrap_num(pair.1).as_i64().unwrap() as i32),
+					PgType::BigInt => i64s.push(unwrap_num(pair.1).as_i64().unwrap()),
+					PgType::IpAddr => addrs.push(serde_json::from_value(pair.1.clone()).unwrap()),
+					PgType::TimeStamp => tss.push(serde_json::from_value(pair.1.clone()).unwrap()),
+					_ => {},
+				};
 			}
 		}
 		query.pop();
@@ -749,6 +806,9 @@ impl PostgresClient {
 		let mut i16_iter = i16s.iter();
 		let mut i32_iter = i32s.iter();
 		let mut i64_iter = i64s.iter();
+
+		let mut ts_iter = tss.iter();
+		let mut addr_iter = addrs.iter();
 	
 		for pair in map {
 			if pair.0.as_str() == pk_name {
@@ -768,22 +828,31 @@ impl PostgresClient {
 				continue;
 			}
 
-			match pair.1 {
-				serde_json::Value::Bool(b) => values.push(b),
-				serde_json::Value::Number(_) => {
-					match field.ty {
-						PgType::Real => values.push(f32_iter.next().unwrap()),
-						PgType::DoublePrecision => values.push(f64_iter.next().unwrap()),
-						PgType::Char => values.push(i8_iter.next().unwrap()),
-						PgType::SmallInt => values.push(i16_iter.next().unwrap()),
-						PgType::Integer => values.push(i32_iter.next().unwrap()),
-						PgType::BigInt => values.push(i64_iter.next().unwrap()),
-						_ => {},
-					};
+			match field.ty {
+				PgType::Real => values.push(f32_iter.next().unwrap()),
+				PgType::DoublePrecision => values.push(f64_iter.next().unwrap()),
+				PgType::Char => values.push(i8_iter.next().unwrap()),
+				PgType::SmallInt => values.push(i16_iter.next().unwrap()),
+				PgType::Integer => values.push(i32_iter.next().unwrap()),
+				PgType::BigInt => values.push(i64_iter.next().unwrap()),
+				PgType::TimeStamp => values.push(ts_iter.next().unwrap()),
+				PgType::IpAddr => values.push(addr_iter.next().unwrap()),
+				PgType::Boolean => {
+					if let serde_json::Value::Bool(b) = pair.1 {
+						values.push(b);
+					} else {
+						panic!("Expected bool, found {}", pair.1);
+					}
 				},
-				serde_json::Value::String(s) => values.push(s),
-				_ => panic!("Unexpected type"),
-			}
+				PgType::Text => {
+					if let serde_json::Value::String(s) = pair.1 {
+						values.push(s);
+					} else {
+						panic!("Expected string, found {}", pair.1);
+					}
+				},
+				_ => {},
+			};
 		}
 	
 		println!("{}", query);
@@ -792,19 +861,8 @@ impl PostgresClient {
 		query = format!("UPDATE {} SET {} WHERE {} = ${}", scheme.name, query, pk_name, value_num.to_string());
 		values.push(item.__get_pk());
 	
-		let mut rows = self.client.query(query.as_str(), values.as_slice())?;
-		//TODO: chek rows size
-		// let first = &rows[0];
-		// let id: P = first.get(0);
-//		item.__set_pk(id as P);
-// 		for row in rows {
-// 			r = row;
-// 			let id: P = get_from_row(&r, 0);
-// //			println!("{}", id);
-// //			item.__set_pk();
-// 		}
-
-		Ok(())	
+		let rows_affected = self.client.execute(query.as_str(), values.as_slice())?;
+		Ok(rows_affected)
 	}
 
 	pub fn delete_full_match<T: Entity + Serialize>(&mut self, item: &T) -> Result<u64, DbError> {
@@ -827,6 +885,9 @@ impl PostgresClient {
 		let mut i16s: Vec<i16> = vec!();
 		let mut i32s: Vec<i32> = vec!();
 		let mut i64s: Vec<i64> = vec!();
+
+		let mut tss: Vec<SystemTime> = vec!();
+		let mut addrs: Vec<IpAddr> = vec!();
 		
 		for pair in map {
 			let opt_field = scheme.fields.get(pair.0);
@@ -844,18 +905,17 @@ impl PostgresClient {
 				query += value_num.to_string().as_str();
 				value_num += 1;
 		
-				if let serde_json::Value::Number(num) = pair.1 {
-					match field.ty {
-						PgType::Real => f32s.push(num.as_f64().unwrap() as f32),
-						PgType::DoublePrecision => f64s.push(num.as_f64().unwrap()),
-						PgType::Char => i8s.push(num.as_i64().unwrap() as i8),
-						PgType::SmallInt => i16s.push(num.as_i64().unwrap() as i16),
-						PgType::Integer => i32s.push(num.as_i64().unwrap() as i32),
-						PgType::Serial => i32s.push(num.as_i64().unwrap() as i32),
-						PgType::BigInt => i64s.push(num.as_i64().unwrap()),
-						_ => {},
-					};
-				}
+				match field.ty {
+					PgType::Real => f32s.push(unwrap_num(pair.1).as_f64().unwrap() as f32),
+					PgType::DoublePrecision => f64s.push(unwrap_num(pair.1).as_f64().unwrap()),
+					PgType::Char => i8s.push(unwrap_num(pair.1).as_i64().unwrap() as i8),
+					PgType::SmallInt => i16s.push(unwrap_num(pair.1).as_i64().unwrap() as i16),
+					PgType::Integer => i32s.push(unwrap_num(pair.1).as_i64().unwrap() as i32),
+					PgType::BigInt => i64s.push(unwrap_num(pair.1).as_i64().unwrap()),
+					PgType::IpAddr => addrs.push(serde_json::from_value(pair.1.clone()).unwrap()),
+					PgType::TimeStamp => tss.push(serde_json::from_value(pair.1.clone()).unwrap()),
+					_ => {},
+				};
 			}
 			query += " AND ";
 		}
@@ -874,6 +934,9 @@ impl PostgresClient {
 		let mut i16_iter = i16s.iter();
 		let mut i32_iter = i32s.iter();
 		let mut i64_iter = i64s.iter();
+
+		let mut ts_iter = tss.iter();
+		let mut addr_iter = addrs.iter();
 	
 		for pair in map {
 			let opt_field = scheme.fields.get(pair.0);
@@ -889,22 +952,31 @@ impl PostgresClient {
 				continue;
 			}
 
-			match pair.1 {
-				serde_json::Value::Bool(b) => values.push(b),
-				serde_json::Value::Number(_) => {
-					match field.ty {
-						PgType::Real => values.push(f32_iter.next().unwrap()),
-						PgType::DoublePrecision => values.push(f64_iter.next().unwrap()),
-						PgType::Char => values.push(i8_iter.next().unwrap()),
-						PgType::SmallInt => values.push(i16_iter.next().unwrap()),
-						PgType::Integer => values.push(i32_iter.next().unwrap()),
-						PgType::BigInt => values.push(i64_iter.next().unwrap()),
-						_ => {},
-					};
+			match field.ty {
+				PgType::Real => values.push(f32_iter.next().unwrap()),
+				PgType::DoublePrecision => values.push(f64_iter.next().unwrap()),
+				PgType::Char => values.push(i8_iter.next().unwrap()),
+				PgType::SmallInt => values.push(i16_iter.next().unwrap()),
+				PgType::Integer => values.push(i32_iter.next().unwrap()),
+				PgType::BigInt => values.push(i64_iter.next().unwrap()),
+				PgType::TimeStamp => values.push(ts_iter.next().unwrap()),
+				PgType::IpAddr => values.push(addr_iter.next().unwrap()),
+				PgType::Boolean => {
+					if let serde_json::Value::Bool(b) = pair.1 {
+						values.push(b);
+					} else {
+						panic!("Expected bool, found {}", pair.1);
+					}
 				},
-				serde_json::Value::String(s) => values.push(s),
-				_ => panic!("Unexpected type"),
-			}
+				PgType::Text => {
+					if let serde_json::Value::String(s) = pair.1 {
+						values.push(s);
+					} else {
+						panic!("Expected string, found {}", pair.1);
+					}
+				},
+				_ => {},
+			};
 		}
 	
 		println!("{}", query);
@@ -912,5 +984,13 @@ impl PostgresClient {
 	
 		let rows_affected = self.client.execute(query.as_str(), values.as_slice())?;
 		Ok(rows_affected)
+	}
+}
+
+fn unwrap_num(val: &serde_json::value::Value) -> &serde_json::Number {
+	if let serde_json::Value::Number(num) = val {
+		num
+	} else {
+		panic!("Number expected, found {}", val);
 	}
 }

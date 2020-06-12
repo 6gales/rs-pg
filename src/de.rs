@@ -15,6 +15,10 @@ use std::{
 	net::IpAddr,
 	time::SystemTime
 };
+use time::{
+	Time,
+	Date
+};
 
 type Result<T> = ::std::result::Result<T, DeError>;
 
@@ -36,6 +40,38 @@ pub fn from_row<'a, T: Deserialize<'a>>(input: Row) -> Result<T> {
     let mut deserializer = Deserializer::from_row(input);
     Ok(T::deserialize(&mut deserializer)?)
 }
+
+// macro_rules! try_get_from_row {
+// 	($row:ident, $index:ident, $ty:ty) => {{
+// 		if let Ok(v) = $row.try_get::<_, $ty>($index) {
+// 			Ok(serde_json::to_value(v)?)
+// 		} else {
+// 			Err(DeError::UnsopportedType)
+// 		}
+// 	}};
+
+// 	($row:ident, $index:ident, $ty:ty, $($types:ty), +) => {{
+// 		if let Ok(_) = $row.try_get::<_, $ty>($index) {
+// 			Ok(serde_json::to_value(v)?)
+// 		} else {
+// 			try_get_from_row!($row, $index, $($types),+)
+// 		}
+// 	}};
+// }
+
+// pub fn try_get_from_row<'de, T: for<'de> Deserialize<'de>>(&row: Row, index: i32) -> Result<T> {
+// 	let res = try_get_from_row!(row, index, i32, i64, String, bool, f32, f64, i8, i16, u32, Vec<u8>, SystemTime, IpAddr, Time, Date);
+// 	match res {
+// 		Ok(val) => {
+// 			let deser = serde_json::from_value(val);
+// 			match deser {
+// 				Ok(v) => std::result::Result::Ok(v),
+// 				Err(e) => std::result::Result::Err(DeError::UnsupportedType),
+// 			}
+// 		},
+// 		Err(e) => Err(e),
+// 	}
+// }
 
 macro_rules! unsupported_type {
     ($($fn_name:ident),*,) => {
@@ -125,14 +161,14 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer {
 
     fn deserialize_string<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         get_value!(self, visitor, visit_string, String)
-    }
-
-    fn deserialize_byte_buf<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
+	}
+		
+	fn deserialize_byte_buf<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
         get_value!(self, visitor, visit_byte_buf, Vec<u8>)
     }
 
     fn deserialize_option<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {		
-		try_get_optional!(self, visitor, i32, i64, String, bool, f32, f64, i8, i16, u32, Vec<u8>, SystemTime, IpAddr)
+		try_get_optional!(self, visitor, i32, i64, String, bool, f32, f64, i8, i16, u32, Vec<u8>, SystemTime, IpAddr, Time, Date)
     }
 
     fn deserialize_seq<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
@@ -181,7 +217,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer {
     }
 
     fn deserialize_map<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value> {
-        visitor.visit_map(self)
+		visitor.visit_map(self)
     }
 
     fn deserialize_struct<V: Visitor<'de>>(self, _: &'static str, _: &'static [&'static str], v: V) -> Result<V::Value> {

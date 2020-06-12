@@ -63,4 +63,6 @@ pub enum DataError {
 	MoreThan1RecordReturned,
 	#[error("Item vector is empty")]
 	EmptyVector,
+	#[error("Expected {0} records, {1} returned")]
+	WrongNumberOfRecordsReturned(usize, usize)
 }

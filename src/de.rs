@@ -36,28 +36,52 @@ impl Deserializer {
 }
 
 /// Attempt to deserialize from a single `Row`.
-pub fn from_row<'a, T: Deserialize<'a>>(input: Row) -> Result<T> {
-    let mut deserializer = Deserializer::from_row(input);
-    Ok(T::deserialize(&mut deserializer)?)
+// pub fn from_row<'a, T: Deserialize<'a>>(input: Row) -> Result<T> {
+//     let mut deserializer = Deserializer::from_row(input);
+//     Ok(T::deserialize(&mut deserializer)?)
+// }
+
+macro_rules! try_get_from_row {
+	($row:ident, $index:ident, $ty:ty) => {{
+		if let Ok(v) = $row.try_get::<_, $ty>($index) {
+			Ok(serde_json::to_value(v).unwrap())
+		} else {
+			if let Ok(v) = $row.try_get::<_, Option<$ty>>($index) {
+				Ok(serde_json::to_value(v).unwrap())
+			} else {
+				Err(DeError::UnsupportedType)
+			}
+		}
+	}};
+
+	($row:ident, $index:ident, $ty:ty, $($types:ty), +) => {{
+		if let Ok(v) = $row.try_get::<_, $ty>($index) {
+			Ok(serde_json::to_value(v).unwrap())
+		} else {
+			if let Ok(v) = $row.try_get::<_, Option<$ty>>($index) {
+				Ok(serde_json::to_value(v).unwrap())
+			} else {
+				try_get_from_row!($row, $index, $($types),+)
+			}
+		}
+	}};
 }
 
-// macro_rules! try_get_from_row {
-// 	($row:ident, $index:ident, $ty:ty) => {{
-// 		if let Ok(v) = $row.try_get::<_, $ty>($index) {
-// 			Ok(serde_json::to_value(v)?)
-// 		} else {
-// 			Err(DeError::UnsopportedType)
-// 		}
-// 	}};
 
-// 	($row:ident, $index:ident, $ty:ty, $($types:ty), +) => {{
-// 		if let Ok(_) = $row.try_get::<_, $ty>($index) {
-// 			Ok(serde_json::to_value(v)?)
-// 		} else {
-// 			try_get_from_row!($row, $index, $($types),+)
-// 		}
-// 	}};
-// }
+pub fn from_row<T: for<'de> serde::Deserialize<'de>>(row: Row) -> Result<T> {
+	let mut map = serde_json::map::Map::new();
+	let columns = row.columns();
+	for i in 0..row.len() {
+		let res = try_get_from_row!(row, i, i32, i64, String, bool, f32, f64, i8, i16, u32, Vec<u8>, SystemTime, IpAddr, Time, Date);
+		match res {
+			Ok(v) => {
+				map.insert(String::from(columns[i].name()), v);
+			},
+			Err(e) => return std::result::Result::Err(DeError::InvalidType(format!("{:?}", e))),
+		}
+	}
+	serde_json::from_value(serde_json::value::Value::Object(map)).map_err(|e| DeError::InvalidType(format!("{:?}", e)))
+}
 
 // pub fn try_get_from_row<'de, T: for<'de> Deserialize<'de>>(&row: Row, index: i32) -> Result<T> {
 // 	let res = try_get_from_row!(row, index, i32, i64, String, bool, f32, f64, i8, i16, u32, Vec<u8>, SystemTime, IpAddr, Time, Date);

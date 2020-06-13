@@ -53,12 +53,20 @@ struct NetworkInfo {
 	last_updated: SystemTime,
 }
 
+#[derive(Entity, Serialize, Deserialize)]
+struct DateTimeStruct {
+	#[primary_key]
+	id: Serial,
+	date: Date,
+	time: Option<Time>,
+}
+
 use postgres::{Client, NoTls};
 
 
 pub fn main() -> Result<(), DbError> {
 
-	insert_with_return_usage_example()?;
+	date_time_example()?;
 	Ok(())
 }
 
@@ -218,6 +226,44 @@ fn time_inet_example() -> Result<(), DbError> {
 	println!("All network infos after delete:");
 	for ni in v {
 		println!("Network with id = {} {} {:?}", ni.id, ni.net_addr, ni.last_updated);
+	}
+	Ok(())
+}
+
+fn date_time_example() -> Result<(), DbError> {
+
+	let opts = ConnectOptions{
+		user: "postgres".to_string(),
+		password: "zeratul".to_string(),
+		address: "localhost".to_string(),
+		port: 5432,
+		database: "postgres".to_string()
+	};
+
+	let mut client = PostgresClient::connect_with_opts(&opts)?;
+	
+	client.create_table::<DateTimeStruct>(CreateTableOptions{temp: false, if_not_exists: true})?;
+
+	let d = Date::try_from_ymd(2019, 1, 1).unwrap();
+	let t = Time::try_from_hms(1, 2, 3).unwrap();
+	let mut s = DateTimeStruct{id: 0, date: d, time: Some(t)};
+	client.insert_with_return(&mut s)?;
+
+	let mut times = vec!(DateTimeStruct{id: 0, date: Date::try_from_ymd(2002, 8, 5).unwrap(), time: None},
+					 DateTimeStruct{id: 0, date: Date::try_from_ymd(2012, 12, 30).unwrap(), time: Some(Time::try_from_hms(6, 18, 36).unwrap())});
+	client.insert_many_with_return(&mut times)?;
+
+	let v = client.select_all::<DateTimeStruct>()?;
+	println!("All date and times:");
+	for dt in v {
+		println!("Dts with id = {} {} {:?}", dt.id, dt.date, dt.time);
+	}
+
+	client.delete_full_match(&s)?;
+	let v = client.select_all::<DateTimeStruct>()?;
+	println!("All date and times after delete first one:");
+	for dt in v {
+		println!("Dts with id = {} {} {:?}", dt.id, dt.date, dt.time);
 	}
 	Ok(())
 }

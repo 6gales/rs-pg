@@ -274,8 +274,8 @@ fn match_type(rust_type: &String) -> PgType {
 		"Serial" => PgType::Serial,
 		"SystemTime" => PgType::TimeStamp,
 		"IpAddr" => PgType::IpAddr,
-		"NaiveDate" =>  PgType::Date,
-		"NaiveTime" => PgType::Time,
+		"Date" =>  PgType::Date,
+		"Time" => PgType::Time,
 		_ => panic!("Unsupported rust type"),
 	}
 }
